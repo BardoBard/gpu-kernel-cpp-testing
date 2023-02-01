@@ -33,6 +33,7 @@ int convert_to_string(const std::string& filename, std::string& source_string)
     return -1;
 }
 
+
 void Threadpool::execute_kernel(const std::string& filename, const std::string& function_name,
                                 std::vector<unsigned int>& int1)
 {
@@ -46,25 +47,25 @@ void Threadpool::execute_kernel(const std::string& filename, const std::string& 
     cl_program program = clCreateProgramWithSource(context, 1, &source, sourceSize, NULL);
     clBuildProgram(program, 1, devices,NULL,NULL,NULL);
     cl_kernel kernel = clCreateKernel(program, function_name.c_str(), NULL); //create kernel, NULL can be status
-    size_t global_work_size[1] = {int1.size()}; //amount of threads
+    size_t global_work_size[1] = {100000000}; //amount of threads
     //
 
-    const auto start = std::chrono::steady_clock::now();
 
+    auto size = sizeof(unsigned int) * 100000000;
+    unsigned int* output = static_cast<unsigned int*>(malloc(size));
 
-    cl_mem inputBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                                        int1.size() * sizeof(unsigned int), (void*)int1.data(), NULL);
-    cl_mem outputBuffer = clCreateBuffer(context, CL_MEM_WRITE_ONLY, int1.size() * sizeof(unsigned int), NULL, NULL);
+    cl_mem output_buffer = clCreateBuffer(context,CL_MEM_WRITE_ONLY, size,NULL,NULL);
 
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&inputBuffer); //give kernel arguments
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&outputBuffer); //give kernel arguments
+    
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&output_buffer);
+
 
     clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, global_work_size, NULL, 0, NULL, NULL);
 
 
-    unsigned int* output = static_cast<unsigned int*>(malloc(int1.size() * sizeof(unsigned int)));
-    clEnqueueReadBuffer(command_queue, outputBuffer, CL_TRUE, 0, int1.size() * sizeof(unsigned int), output, 0, NULL,
-                        NULL);
+    const auto start = std::chrono::steady_clock::now();
+
+    clEnqueueReadBuffer(command_queue, output_buffer, CL_TRUE, 0, size, output, 0, NULL, NULL);
 
     const auto end = std::chrono::steady_clock::now();
 
@@ -73,18 +74,16 @@ void Threadpool::execute_kernel(const std::string& filename, const std::string& 
     std::cout << std::chrono::duration<double, std::nano>(end - start).count() << " ns" << std::endl;
 
 
-    std::cout << "\noutput string:" << std::endl;
-    // for (int i = 0; i < int1.size() * sizeof(unsigned int); ++i)
-    // {
-    //     std::cout << output[i] << std::endl;
-    // }
+    for (int i = 0; i < 100; ++i)
+    {
+        std::cout << output[i] << std::endl;
+    }
     clReleaseKernel(kernel); //Release kernel.
     clReleaseProgram(program); //Release the program object.
-    clReleaseMemObject(inputBuffer); //Release mem object.
-    clReleaseMemObject(outputBuffer);
+    clReleaseMemObject(output_buffer); //Release mem object.
     if (output != NULL)
     {
-        free(output);
+        delete[] output;
         output = NULL;
     }
 }
